@@ -464,10 +464,35 @@
   background: var(--surface);
   border: 1px solid var(--stroke);
 
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.75rem;
+  }
+
   h4 {
     font-size: 0.9rem;
     font-weight: 600;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0;
+  }
+
+  &__copy {
+    padding: 0.4rem 0.8rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--stroke);
+    background: var(--surface);
+    color: var(--text-soft);
+    font-size: 0.78rem;
+    font-family: inherit;
+    cursor: pointer;
+    transition: background 0.2s, border-color 0.2s;
+
+    &:hover {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+    }
   }
 
   &__text {

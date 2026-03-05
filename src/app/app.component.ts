@@ -28,6 +28,7 @@ export class AppComponent implements AfterViewInit {
   errorMessage = signal('');
   report = signal<AuditReport | null>(null);
   theme = signal<'dark' | 'light'>('dark');
+  summaryCopied = signal(false);
 
   readonly overallGrade = computed(() => {
     const r = this.report();
@@ -130,6 +131,29 @@ export class AppComponent implements AfterViewInit {
       case 'yml': case 'yaml': return '⚙️';
       default: return '📄';
     }
+  }
+
+  async copySummary(): Promise<void> {
+    const r = this.report();
+    if (!r) return;
+
+    const lines = [
+      `# SnapAudit Report: ${r.repo.fullName}`,
+      `Overall Score: ${r.overallScore}/100 (${this.overallGrade().letter})`,
+      '',
+      '## Scores',
+      ...r.scores.map(s => `- ${s.icon} ${s.category}: ${s.score}/100 — ${s.detail}`),
+      '',
+      '## Suggestions',
+      ...r.scores.flatMap(s => s.suggestions.map(sg => `- ${sg}`)),
+      '',
+      '## Summary',
+      r.summary
+    ];
+
+    await navigator.clipboard.writeText(lines.join('\n'));
+    this.summaryCopied.set(true);
+    setTimeout(() => this.summaryCopied.set(false), 2000);
   }
 
   trackByCategory(_: number, s: AuditScore): string { return s.category; }
