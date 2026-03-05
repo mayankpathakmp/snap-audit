@@ -1,0 +1,145 @@
+<div class="app" [class.light]="theme() === 'light'" [attr.data-theme]="theme()">
+  <!-- Header -->
+  <header class="header">
+    <div class="header__brand">
+      <span class="header__logo">\u26a1</span>
+      <h1 class="header__title">SnapAudit</h1>
+      <span class="header__tagline">AI-Powered Code Audit</span>
+    </div>
+    <button class="theme-toggle" (click)="toggleTheme()" [attr.aria-label]="'Switch to ' + (theme() === 'dark' ? 'light' : 'dark') + ' mode'">
+      {{ theme() === 'dark' ? '\u2600\ufe0f' : '\ud83c\udf19' }}
+    </button>
+  </header>
+
+  <!-- Hero / Input -->
+  <section class="hero">
+    <h2 class="hero__heading">Audit any GitHub repo <span class="hero__accent">instantly</span></h2>
+    <p class="hero__sub">Paste a repository URL and get a comprehensive code quality report with scores, insights, and actionable suggestions.</p>
+    <div class="hero__input-row">
+      <input
+        type="text"
+        class="hero__input"
+        [(ngModel)]="repoUrl"
+        placeholder="github.com/owner/repo or owner/repo"
+        (keyup.enter)="runAudit()"
+        [disabled]="status() === 'fetching' || status() === 'analyzing'"
+      />
+      <button
+        class="btn btn--primary"
+        (click)="runAudit()"
+        [disabled]="status() === 'fetching' || status() === 'analyzing'"
+      >
+        <span *ngIf="status() === 'idle' || status() === 'complete' || status() === 'error'">Audit</span>
+        <span *ngIf="status() === 'fetching'">Fetching\u2026</span>
+        <span *ngIf="status() === 'analyzing'">Analyzing\u2026</span>
+      </button>
+    </div>
+    <p class="hero__error" *ngIf="status() === 'error'">{{ errorMessage() }}</p>
+  </section>
+
+  <!-- Loading -->
+  <section class="loading" *ngIf="status() === 'fetching' || status() === 'analyzing'">
+    <div class="loading__spinner"></div>
+    <p class="loading__text" *ngIf="status() === 'fetching'">Fetching repository data from GitHub\u2026</p>
+    <p class="loading__text" *ngIf="status() === 'analyzing'">Running audit analysis\u2026</p>
+  </section>
+
+  <!-- Report -->
+  <section class="report" *ngIf="report() as r">
+    <!-- Repo Header -->
+    <div class="report__header">
+      <img [src]="r.repo.avatarUrl" alt="Owner avatar" class="report__avatar" width="48" height="48" />
+      <div class="report__repo-info">
+        <h3 class="report__repo-name">
+          <a [href]="'https://github.com/' + r.repo.fullName" target="_blank" rel="noopener noreferrer">{{ r.repo.fullName }}</a>
+        </h3>
+        <p class="report__repo-desc">{{ r.repo.description }}</p>
+        <div class="report__repo-meta">
+          <span>\u2b50 {{ r.repo.stars }}</span>
+          <span>\ud83c\udf74 {{ r.repo.forks }}</span>
+          <span>\ud83d\udce6 {{ r.repo.size }} KB</span>
+          <span *ngIf="r.repo.license">\ud83d\udcdc {{ r.repo.license }}</span>
+        </div>
+      </div>
+      <div class="report__grade" [style.border-color]="overallGrade().color">
+        <span class="report__grade-letter" [style.color]="overallGrade().color">{{ overallGrade().letter }}</span>
+        <span class="report__grade-score">{{ r.overallScore }}/100</span>
+      </div>
+    </div>
+
+    <!-- Score Cards -->
+    <div class="scores">
+      <article *ngFor="let score of r.scores; trackBy: trackByCategory" class="score-card">
+        <div class="score-card__header">
+          <span class="score-card__icon">{{ score.icon }}</span>
+          <span class="score-card__category">{{ score.category }}</span>
+        </div>
+        <div class="score-card__ring">
+          <svg viewBox="0 0 36 36" class="score-card__svg">
+            <path class="score-card__bg"
+              d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831a 15.9155 15.9155 0 0 1 0 -31.831"
+              fill="none" stroke-width="3" />
+            <path class="score-card__fg"
+              d="M18 2.0845a 15.9155 15.9155 0 0 1 0 31.831a 15.9155 15.9155 0 0 1 0 -31.831"
+              fill="none" stroke-width="3"
+              [style.stroke]="getScoreColor(score.score)"
+              [style.stroke-dasharray]="score.score + ', 100'" />
+          </svg>
+          <span class="score-card__value">{{ score.score }}</span>
+        </div>
+        <p class="score-card__detail">{{ score.detail }}</p>
+        <ul class="score-card__suggestions" *ngIf="score.suggestions.length">
+          <li *ngFor="let s of score.suggestions; trackBy: trackBySuggestion">{{ s }}</li>
+        </ul>
+      </article>
+    </div>
+
+    <!-- Charts Row -->
+    <div class="charts">
+      <div class="chart-card">
+        <h4 class="chart-card__title">Language Breakdown</h4>
+        <div class="chart-card__canvas-wrap">
+          <canvas #langChart></canvas>
+        </div>
+        <div class="lang-legend">
+          <div *ngFor="let l of r.languages; trackBy: trackByLang" class="lang-legend__item">
+            <span class="lang-legend__dot" [style.background]="l.color"></span>
+            <span class="lang-legend__name">{{ l.language }}</span>
+            <span class="lang-legend__pct">{{ l.percentage }}%</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <h4 class="chart-card__title">Score Radar</h4>
+        <div class="chart-card__canvas-wrap chart-card__canvas-wrap--radar">
+          <canvas #scoreChart></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- File Tree -->
+    <div class="file-tree-card">
+      <h4 class="file-tree-card__title">\ud83d\udcc2 Repository Structure</h4>
+      <div class="file-tree">
+        <div *ngFor="let node of r.fileTree; trackBy: trackByPath" class="file-tree__node">
+          <span class="file-tree__icon">{{ getFileIcon(node) }}</span>
+          <span class="file-tree__name" [class.file-tree__name--dir]="node.type === 'dir'">{{ node.name }}</span>
+          <span class="file-tree__size" *ngIf="node.size">{{ node.size | number }} B</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Summary -->
+    <div class="summary-card">
+      <h4>\ud83d\udccb Audit Summary</h4>
+      <p class="summary-card__text">{{ r.summary }}</p>
+      <p class="summary-card__timestamp">Generated {{ r.generatedAt | date:'medium' }}</p>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <p>\u00a9 2025 SnapAudit \u00b7 Built by <a href="https://github.com/mayankpathakmp" target="_blank" rel="noopener noreferrer">Mayank Pathak</a></p>
+    <p class="footer__tech">Angular 17 \u00b7 TypeScript \u00b7 Chart.js \u00b7 GitHub REST API</p>
+  </footer>
+</div>
